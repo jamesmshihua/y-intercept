@@ -11,14 +11,17 @@ mkt_cap = pd.read_csv('data/mkt_cap.csv')
 sector = pd.read_csv('data/sector.csv')
 last["t_days"] = last.groupby("ticker")["date"].cumcount()
 tickers = last['ticker'].unique()
-JT1332 = last.loc[last["ticker"] == "1332 JT"].drop(columns=['ticker'])
-JT1332.set_index(pd.DatetimeIndex(pd.to_datetime(JT1332["date"])), inplace=True)
-JT1332.rename(columns={"last": "Close"}, errors="raise", inplace=True)
-JT1332["Open"] = JT1332["Close"]
-JT1332["High"] = JT1332["Close"]
-JT1332["Low"] = JT1332["Close"]
 
-print(JT1332.head(3))
+list_of_stocks = []
+for ticker in tickers:
+    instrument = last.loc[last["ticker"] == ticker].drop(columns=['ticker'])
+    instrument.set_index(pd.DatetimeIndex(pd.to_datetime(instrument["date"])), inplace=True)
+    instrument.rename(columns={"last": "Close"}, errors="raise", inplace=True)
+    instrument["Open"] = instrument["Close"]
+    instrument["High"] = instrument["Close"]
+    instrument["Low"] = instrument["Close"]
+    list_of_stocks.append(instrument)
+
 
 
 class AdaMACDStrat(Strategy):
@@ -86,10 +89,17 @@ class AdaMACDStrat(Strategy):
         return adaptive_signal_line
 
 
-bt = Backtest(JT1332, AdaMACDStrat, commission=0.0,
-              exclusive_orders=True)
-stats = bt.run()
-print(stats)
-bt.plot()
+stock_returns = pd.DataFrame(index=tickers, columns=['Strat Return', 'Hold Return'])
+for ticker, stock in zip(tickers, list_of_stocks):
+    bt = Backtest(stock, AdaMACDStrat, commission=0.0,
+                  exclusive_orders=True, cash=1_000_000)
+    stats = bt.run()
+    stock_returns.loc[ticker] = (stats["Return [%]"], stats["Buy & Hold Return [%]"])
+    # print(stats)
+    # bt.plot()
 
-# %%
+
+print(stock_returns)
+print("Average strat return:", stock_returns['Strat Return'].mean())
+print("Average strat return:", stock_returns['Hold Return'].mean())
+
